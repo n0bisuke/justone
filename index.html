@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Just One App</title>
+  <title>Just One カードアプリ</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -33,6 +33,40 @@
       font-size: 18px;
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .mode-selector {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .mode-title {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    .mode-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+    .mode-button {
+      padding: 8px 16px;
+      border: 2px solid #4B9CD3;
+      border-radius: 20px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      margin-bottom: 5px;
+    }
+    .mode-button.active {
+      background: #4B9CD3;
+      color: white;
+    }
+    .mode-button:hover:not(.active) {
+      background: #E6F0F8;
     }
     .card-container {
       width: 100%;
@@ -72,6 +106,35 @@
       border-radius: 4px;
       border-width: 2px;
       border-style: solid;
+      position: relative;
+    }
+    .topic-actions {
+      position: absolute;
+      right: 5px;
+      top: 5px;
+      display: flex;
+      gap: 5px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .topic-actions:hover {
+      opacity: 1;
+    }
+    .topic-action-button {
+      width: 20px;
+      height: 20px;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      color: #555;
+    }
+    .topic-action-button:hover {
+      background: #ddd;
     }
     .topic-text {
       text-align: center;
@@ -88,43 +151,63 @@
       font-size: 16px;
       cursor: pointer;
     }
-    .hidden {
-      display: none;
-    }
     .loading {
       font-size: 18px;
       margin-top: 20px;
       color: #666;
     }
-    .mode-selector {
-      margin-bottom: 30px;
+    .hidden {
+      display: none;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 80%;
+      max-width: 320px;
+    }
+    .modal-title {
+      font-size: 18px;
+      margin-bottom: 15px;
       text-align: center;
     }
-    .mode-title {
-      font-size: 16px;
-      margin-bottom: 10px;
-      color: #555;
+    .modal-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      box-sizing: border-box;
     }
-    .mode-buttons {
+    .modal-buttons {
       display: flex;
-      justify-content: center;
-      gap: 10px;
+      justify-content: space-between;
     }
-    .mode-button {
+    .modal-button {
       padding: 8px 16px;
-      border: 2px solid #4B9CD3;
-      border-radius: 20px;
-      background: white;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
     }
-    .mode-button.active {
-      background: #4B9CD3;
+    .modal-cancel {
+      background-color: #eee;
+      color: #333;
+    }
+    .modal-confirm {
+      background-color: #4B9CD3;
       color: white;
-    }
-    .mode-button:hover:not(.active) {
-      background: #E6F0F8;
     }
   </style>
 </head>
@@ -155,6 +238,18 @@
       </div>
       <button id="back-button" class="back-button">戻る</button>
     </div>
+    
+    <!-- 単語編集モーダル -->
+    <div id="edit-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-title">単語を変更</div>
+        <input type="text" id="edit-input" class="modal-input" placeholder="新しい単語を入力">
+        <div class="modal-buttons">
+          <button id="modal-cancel" class="modal-button modal-cancel">キャンセル</button>
+          <button id="modal-confirm" class="modal-button modal-confirm">変更</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -165,6 +260,11 @@
     const backButton = document.getElementById('back-button');
     const topicList = document.getElementById('topic-list');
     const loadingElement = document.getElementById('loading');
+    const editModal = document.getElementById('edit-modal');
+    const editInput = document.getElementById('edit-input');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalConfirm = document.getElementById('modal-confirm');
+    const modeButtonsContainer = document.getElementById('mode-buttons');
     
     // カードの色設定
     const colors = [
@@ -181,12 +281,17 @@
       currentMode: 'general',
       topics: {
         general: [],
-        history: []
+        history: [],
+        advertising: [],
+        nara: []
       }
     };
     
-    // モードボタンの要素を取得
-    const modeButtonsContainer = document.getElementById('mode-buttons');
+    // 現在表示されているお題リスト
+    let currentTopics = [];
+    
+    // 編集中の単語のインデックス
+    let editingIndex = -1;
     
     // JSONファイルからデータを読み込む
     async function loadGameData() {
@@ -202,6 +307,8 @@
         gameData.modes = data.modes || [];
         gameData.topics.general = data.general || [];
         gameData.topics.history = data.history || [];
+        gameData.topics.advertising = data.advertising || [];
+        gameData.topics.nara = data.nara || [];
         
         // モードボタンを生成
         renderModeButtons();
@@ -220,7 +327,13 @@
       modeButtonsContainer.innerHTML = '';
       
       gameData.modes.forEach((mode, index) => {
-        const modeId = index === 0 ? 'general' : 'history';
+        let modeId;
+        if (index === 0) modeId = 'general';
+        else if (index === 1) modeId = 'history';
+        else if (index === 2) modeId = 'advertising';
+        else if (index === 3) modeId = 'nara';
+        else modeId = `mode${index}`;
+        
         const button = document.createElement('button');
         button.className = 'mode-button' + (modeId === gameData.currentMode ? ' active' : '');
         button.textContent = mode.name;
@@ -244,49 +357,43 @@
       });
     }
     
-    // アプリ初期化
-    async function initApp() {
-      const success = await loadGameData();
-      if (!success) {
-        startButton.disabled = true;
-        return;
-      }
-    }
-    
     // ランダムなお題を生成する関数
     function generateRandomTopics() {
       const newTopics = [];
       const usedIndices = new Set();
       
       // 現在選択されているモードのトピックを取得
-      const currentTopics = gameData.topics[gameData.currentMode];
+      const currentTopicsData = gameData.topics[gameData.currentMode];
       
       // トピックがない場合はデフォルトトピックを使用
-      if (!currentTopics || currentTopics.length === 0) {
-        return [
+      if (!currentTopicsData || currentTopicsData.length < 5) {
+        currentTopics = [
           { id: 1, text: '船' },
           { id: 2, text: 'ボーリング' },
           { id: 3, text: 'アインシュタイン' },
           { id: 4, text: 'キュウリ' },
           { id: 5, text: 'スパイ' }
         ];
+        return currentTopics;
       }
       
       for (let i = 1; i <= 5; i++) {
         let randomIndex;
         do {
-          randomIndex = Math.floor(Math.random() * currentTopics.length);
+          randomIndex = Math.floor(Math.random() * currentTopicsData.length);
         } while (usedIndices.has(randomIndex));
         
         usedIndices.add(randomIndex);
-        newTopics.push({ id: i, text: currentTopics[randomIndex] });
+        newTopics.push({ id: i, text: currentTopicsData[randomIndex] });
       }
       
-      return newTopics;
+      currentTopics = newTopics;
+      return currentTopics;
     }
     
     // お題カードを表示する関数
     function renderTopics(topics) {
+      // 引数として受け取ったtopicsを表示する
       topicList.innerHTML = '';
       
       topics.forEach((topic, index) => {
@@ -303,10 +410,38 @@
         cardDiv.style.borderColor = colors[index].border;
         cardDiv.style.backgroundColor = colors[index].bg;
         
+        // 単語操作ボタンを追加
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'topic-actions';
+        
+        // 編集ボタン
+        const editButton = document.createElement('button');
+        editButton.className = 'topic-action-button';
+        editButton.innerHTML = '✏️';
+        editButton.title = '単語を編集';
+        editButton.onclick = function(e) {
+          e.stopPropagation();
+          showEditModal(index);
+        };
+        
+        // 入れ替えボタン
+        const replaceButton = document.createElement('button');
+        replaceButton.className = 'topic-action-button';
+        replaceButton.innerHTML = '🔄';
+        replaceButton.title = 'ランダムに入れ替え';
+        replaceButton.onclick = function(e) {
+          e.stopPropagation();
+          replaceRandomWord(index);
+        };
+        
+        actionsDiv.appendChild(editButton);
+        actionsDiv.appendChild(replaceButton);
+        
         const textP = document.createElement('p');
         textP.className = 'topic-text';
         textP.textContent = topic.text;
         
+        cardDiv.appendChild(actionsDiv);
         cardDiv.appendChild(textP);
         li.appendChild(numberDiv);
         li.appendChild(cardDiv);
@@ -314,10 +449,73 @@
       });
     }
     
+    // 単語を編集モーダルを表示
+    function showEditModal(index) {
+      editingIndex = index;
+      editInput.value = currentTopics[index].text;
+      editModal.style.display = 'flex';
+      editInput.focus();
+    }
+    
+    // 単語編集モーダルを閉じる
+    function closeEditModal() {
+      editModal.style.display = 'none';
+      editingIndex = -1;
+    }
+    
+    // 単語を変更
+    function changeWord() {
+      if (editingIndex === -1) return;
+      
+      const newWord = editInput.value.trim();
+      if (newWord === '') return;
+      
+      // 単語を更新
+      currentTopics[editingIndex].text = newWord;
+      
+      // 再描画
+      renderTopics(currentTopics);
+      closeEditModal();
+    }
+    
+    // 単語をランダムに入れ替え
+    function replaceRandomWord(index) {
+      const currentMode = gameData.currentMode;
+      const allTopicsForMode = gameData.topics[currentMode];
+      
+      if (!allTopicsForMode || allTopicsForMode.length === 0) return;
+      
+      const currentWord = currentTopics[index].text;
+      let newWord;
+      
+      // 現在の単語と違う単語が選ばれるまでランダムに選択
+      do {
+        const randomIndex = Math.floor(Math.random() * allTopicsForMode.length);
+        newWord = allTopicsForMode[randomIndex];
+      } while (newWord === currentWord);
+      
+      // 単語を更新
+      currentTopics[index].text = newWord;
+      
+      // 再描画
+      renderTopics(currentTopics);
+    }
+    
+    // アプリ初期化
+    async function initApp() {
+      const success = await loadGameData();
+      if (!success) {
+        startButton.disabled = true;
+        return;
+      }
+    }
+    
     // スタートボタンクリック時の処理
     startButton.addEventListener('click', function() {
       // 現在のモード名を取得
-      const currentModeIndex = gameData.currentMode === 'general' ? 0 : 1;
+      const currentModeIndex = gameData.currentMode === 'general' ? 0 : 
+                              gameData.currentMode === 'history' ? 1 : 
+                              gameData.currentMode === 'advertising' ? 2 : 3;
       const currentModeName = gameData.modes[currentModeIndex].name;
       
       let countdown = 5;
@@ -330,6 +528,7 @@
         } else {
           clearInterval(countdownInterval);
           const topics = generateRandomTopics();
+          // currentTopicsに代入は generateRandomTopics 内で行われる
           renderTopics(topics);
           
           // カード表示画面のタイトルを更新（モード名を表示）
@@ -349,6 +548,24 @@
       topicsScreen.classList.add('hidden');
       startScreen.classList.remove('hidden');
       startButton.textContent = 'スタート';
+    });
+    
+    // モーダルイベントハンドラー
+    modalCancel.addEventListener('click', closeEditModal);
+    modalConfirm.addEventListener('click', changeWord);
+    editInput.addEventListener('keyup', function(event) {
+      if (event.key === 'Enter') {
+        changeWord();
+      } else if (event.key === 'Escape') {
+        closeEditModal();
+      }
+    });
+    
+    // モーダル外クリックで閉じる
+    editModal.addEventListener('click', function(event) {
+      if (event.target === editModal) {
+        closeEditModal();
+      }
     });
     
     // アプリの初期化
