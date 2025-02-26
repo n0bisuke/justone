@@ -91,6 +91,41 @@
     .hidden {
       display: none;
     }
+    .loading {
+      font-size: 18px;
+      margin-top: 20px;
+      color: #666;
+    }
+    .mode-selector {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .mode-title {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    .mode-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .mode-button {
+      padding: 8px 16px;
+      border: 2px solid #4B9CD3;
+      border-radius: 20px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .mode-button.active {
+      background: #4B9CD3;
+      color: white;
+    }
+    .mode-button:hover:not(.active) {
+      background: #E6F0F8;
+    }
   </style>
 </head>
 <body>
@@ -98,11 +133,21 @@
     <!-- スタート画面 -->
     <div id="start-screen" class="app-container start-screen">
       <h1>Just One カードアプリ</h1>
+      
+      <div class="mode-selector">
+        <div class="mode-title">モード選択</div>
+        <div class="mode-buttons" id="mode-buttons">
+          <!-- モードボタンはJSで生成 -->
+        </div>
+      </div>
+      
       <button id="start-button" class="start-button">スタート</button>
+      <div id="loading" class="loading hidden">読み込み中...</div>
     </div>
     
     <!-- お題表示画面 -->
     <div id="topics-screen" class="app-container hidden">
+      <h2 id="topics-title" style="margin-bottom: 16px; font-size: 18px; color: #555;">モード: 一般</h2>
       <div class="card-container">
         <ul class="topic-list" id="topic-list">
           <!-- トピックはJavaScriptで生成 -->
@@ -113,29 +158,13 @@
   </div>
 
   <script>
-    // お題の単語リスト
-    const allTopics = [
-      // 物
-      '船', 'ボーリング', 'キュウリ', 'スマホ', 'パソコン', '財布', '傘', '鞄', '時計', '鍵',
-      'テレビ', '冷蔵庫', 'カメラ', '自転車', '電車', '飛行機', '車', 'バス', 'ノート', '本',
-      '椅子', 'テーブル', 'ベッド', 'ソファ', 'ドア', '窓', '鏡', '花瓶', 'カップ', 'お皿',
-      
-      // 人物
-      'アインシュタイン', 'スパイ', '医者', '先生', '警察官', '消防士', '俳優', '歌手', 'シェフ', 'デザイナー',
-      '政治家', '科学者', '宇宙飛行士', '画家', '作家', '社長', '学生', '子供', '赤ちゃん', '老人',
-      
-      // 食べ物
-      'ラーメン', 'カレー', 'ピザ', 'ハンバーガー', '寿司', 'ケーキ', 'アイス', 'チョコレート', 'りんご', 'バナナ',
-      '牛肉', '豚肉', '鶏肉', '卵', '牛乳', 'チーズ', '納豆', 'みそ汁', 'うどん', 'そば',
-      
-      // 場所
-      '学校', '病院', '図書館', '映画館', 'レストラン', 'カフェ', '公園', 'ビーチ', '山', '川',
-      '湖', '森', '砂漠', '島', '都市', '田舎', '空港', '駅', 'ホテル', '遊園地',
-      
-      // 活動
-      '水泳', 'サッカー', '野球', 'テニス', 'バスケ', 'ゴルフ', 'スキー', '釣り', 'キャンプ', 'ハイキング',
-      '料理', '掃除', '買い物', '勉強', '読書', '映画鑑賞', 'ゲーム', '旅行', 'ヨガ', 'ダンス'
-    ];
+    // DOM要素の取得
+    const startScreen = document.getElementById('start-screen');
+    const topicsScreen = document.getElementById('topics-screen');
+    const startButton = document.getElementById('start-button');
+    const backButton = document.getElementById('back-button');
+    const topicList = document.getElementById('topic-list');
+    const loadingElement = document.getElementById('loading');
     
     // カードの色設定
     const colors = [
@@ -146,26 +175,111 @@
       { border: '#FFC20E', bg: '#FFFBE6' }  // 黄色系
     ];
     
-    // DOM要素の取得
-    const startScreen = document.getElementById('start-screen');
-    const topicsScreen = document.getElementById('topics-screen');
-    const startButton = document.getElementById('start-button');
-    const backButton = document.getElementById('back-button');
-    const topicList = document.getElementById('topic-list');
+    // データを格納する変数
+    let gameData = {
+      modes: [],
+      currentMode: 'general',
+      topics: {
+        general: [],
+        history: []
+      }
+    };
+    
+    // モードボタンの要素を取得
+    const modeButtonsContainer = document.getElementById('mode-buttons');
+    
+    // JSONファイルからデータを読み込む
+    async function loadGameData() {
+      try {
+        loadingElement.classList.remove('hidden');
+        const response = await fetch('data.json');
+        if (!response.ok) {
+          throw new Error('JSONファイルの読み込みに失敗しました');
+        }
+        const data = await response.json();
+        
+        // データを格納
+        gameData.modes = data.modes || [];
+        gameData.topics.general = data.general || [];
+        gameData.topics.history = data.history || [];
+        
+        // モードボタンを生成
+        renderModeButtons();
+        
+        loadingElement.classList.add('hidden');
+        return true;
+      } catch (error) {
+        console.error('エラー:', error);
+        loadingElement.textContent = 'データの読み込みに失敗しました。再読み込みしてください。';
+        return false;
+      }
+    }
+    
+    // モードボタンを生成する関数
+    function renderModeButtons() {
+      modeButtonsContainer.innerHTML = '';
+      
+      gameData.modes.forEach((mode, index) => {
+        const modeId = index === 0 ? 'general' : 'history';
+        const button = document.createElement('button');
+        button.className = 'mode-button' + (modeId === gameData.currentMode ? ' active' : '');
+        button.textContent = mode.name;
+        button.setAttribute('data-mode', modeId);
+        button.title = mode.description;
+        
+        button.addEventListener('click', () => {
+          // 他のボタンからactiveクラスを削除
+          document.querySelectorAll('.mode-button').forEach(btn => {
+            btn.classList.remove('active');
+          });
+          
+          // クリックされたボタンにactiveクラスを追加
+          button.classList.add('active');
+          
+          // 現在のモードを更新
+          gameData.currentMode = modeId;
+        });
+        
+        modeButtonsContainer.appendChild(button);
+      });
+    }
+    
+    // アプリ初期化
+    async function initApp() {
+      const success = await loadGameData();
+      if (!success) {
+        startButton.disabled = true;
+        return;
+      }
+    }
     
     // ランダムなお題を生成する関数
     function generateRandomTopics() {
       const newTopics = [];
       const usedIndices = new Set();
       
+      // 現在選択されているモードのトピックを取得
+      const currentTopics = gameData.topics[gameData.currentMode];
+      
+      // トピックがない場合はデフォルトトピックを使用
+      if (!currentTopics || currentTopics.length === 0) {
+        return [
+          { id: 1, text: '船' },
+          { id: 2, text: 'ボーリング' },
+          { id: 3, text: 'アインシュタイン' },
+          { id: 4, text: 'キュウリ' },
+          { id: 5, text: 'スパイ' }
+        ];
+      }
+      
       for (let i = 1; i <= 5; i++) {
         let randomIndex;
         do {
-          randomIndex = Math.floor(Math.random() * allTopics.length);
+          randomIndex = Math.floor(Math.random() * currentTopics.length);
         } while (usedIndices.has(randomIndex));
         
         usedIndices.add(randomIndex);
-        newTopics.push({ id: i, text: allTopics[randomIndex] });
+        newTopics.push({ id: i, text: currentTopics[randomIndex] });
       }
       
       return newTopics;
@@ -202,6 +316,10 @@
     
     // スタートボタンクリック時の処理
     startButton.addEventListener('click', function() {
+      // 現在のモード名を取得
+      const currentModeIndex = gameData.currentMode === 'general' ? 0 : 1;
+      const currentModeName = gameData.modes[currentModeIndex].name;
+      
       let countdown = 5;
       startButton.textContent = `${countdown}秒後に表示`;
       
@@ -213,6 +331,13 @@
           clearInterval(countdownInterval);
           const topics = generateRandomTopics();
           renderTopics(topics);
+          
+          // カード表示画面のタイトルを更新（モード名を表示）
+          const topicsTitle = document.getElementById('topics-title');
+          if (topicsTitle) {
+            topicsTitle.textContent = `モード: ${currentModeName}`;
+          }
+          
           startScreen.classList.add('hidden');
           topicsScreen.classList.remove('hidden');
         }
@@ -226,8 +351,8 @@
       startButton.textContent = 'スタート';
     });
     
-    // 初期表示
-    renderTopics(generateRandomTopics());
+    // アプリの初期化
+    initApp();
   </script>
 </body>
 </html>
